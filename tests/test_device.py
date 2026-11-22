@@ -17,12 +17,7 @@ from devices.phoenix.tooling import device, unlockfiles
 class ProtocolTests(unittest.TestCase):
     def test_vectors(self):
         # 1234567 = 0x12d687, masked to 0x12d206; max ID masks to 0xf7f3f37f.
-        for number, token in (
-            (0, "pico0"),
-            (1, "picoX"),
-            (1234567, "picoXDHD0B"),
-            (0xFFFFFFFF, "picoMBM9M9BM"),
-        ):
+        for number, token in ((0, "pico0"), (1, "picoX"), (1234567, "picoXDHD0B"), (0xFFFFFFFF, "picoMBM9M9BM")):
             self.assertEqual(device.unlock_token(number), token)
 
 
@@ -62,19 +57,11 @@ class WorkflowTests(unittest.TestCase):
         if command in ("stage", "restore-abl"):
             args += ["--partition", "abl", "--readback", str(self.readback)]
         if command == "stage":
-            args += [
-                "--image",
-                str(self.image),
-                "--sha256",
-                device.digest(self.image)["sha256"],
-            ]
+            args += ["--image", str(self.image), "--sha256", device.digest(self.image)["sha256"]]
         return args
 
     def call(self, args: list[str]) -> int:
-        with (
-            contextlib.redirect_stdout(io.StringIO()),
-            contextlib.redirect_stderr(io.StringIO()),
-        ):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             return device.main(args)
 
     def test_previews_never_contact_tools(self):
@@ -86,30 +73,15 @@ class WorkflowTests(unittest.TestCase):
     def test_python_edl_entrypoint_keeps_arguments_separate(self):
         script = self.root / "tool with spaces" / "edl.py"
         args = device.parser().parse_args(
-            [
-                *self.args("backup"),
-                "--edl-script",
-                str(script),
-                "--edl-python",
-                "venv/python.exe",
-            ]
+            [*self.args("backup"), "--edl-script", str(script), "--edl-python", "venv/python.exe"]
         )
         command = device.edl_command(args, "rl", str(self.backup), "--genxml")
         # Relative tool paths become absolute: CreateProcess rejects "venv/python.exe".
-        self.assertEqual(
-            command[:3],
-            [str(Path("venv/python.exe").resolve()), str(script.resolve()), "rl"],
-        )
+        self.assertEqual(command[:3], [str(Path("venv/python.exe").resolve()), str(script.resolve()), "rl"])
         self.assertIn("--memory=ufs", command)
 
     def test_native_backend_requires_explicit_luns_and_keeps_commands_read_only(self):
-        base = [
-            *self.args("backup"),
-            "--edl-backend",
-            "edl-ng",
-            "--edl",
-            "native tool.exe",
-        ]
+        base = [*self.args("backup"), "--edl-backend", "edl-ng", "--edl", "native tool.exe"]
         self.assertEqual(self.call(base), 1)
         self.assertEqual(self.call([*base, "--edl-luns", "0", "0"]), 1)
         args = device.parser().parse_args([*base, "--edl-luns", "4", "0"])
@@ -120,26 +92,13 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(command[5], "dump-rawprogram")
             self.assertEqual(Path(command[6]), (self.backup / f"lun{lun}").resolve())
             # Android's cache and the crash dumps are never kept (no install or restore needs them).
-            self.assertEqual(
-                command[7:],
-                ["--lun", str(lun), "--skip", "cache,rawdump,logdump,userdata"],
-            )
+            self.assertEqual(command[7:], ["--lun", str(lun), "--skip", "cache,rawdump,logdump,userdata"])
         args.include_userdata = True
-        self.assertEqual(
-            device.backup_commands(args)[0][-2:], ["--skip", "cache,rawdump,logdump"]
-        )
-        self.assertEqual(
-            device.edl_command(args, "r", "abl", "read.bin")[5:],
-            ["read-part", "abl", "read.bin"],
-        )
-        self.assertEqual(
-            device.edl_command(args, "w", "abl", "write.bin")[5:],
-            ["write-part", "abl", "write.bin"],
-        )
+        self.assertEqual(device.backup_commands(args)[0][-2:], ["--skip", "cache,rawdump,logdump"])
+        self.assertEqual(device.edl_command(args, "r", "abl", "read.bin")[5:], ["read-part", "abl", "read.bin"])
+        self.assertEqual(device.edl_command(args, "w", "abl", "write.bin")[5:], ["write-part", "abl", "write.bin"])
 
-    @unittest.skipUnless(
-        device.RESUMABLE, "this overpressure has no resumed backup (interface 1.5)"
-    )
+    @unittest.skipUnless(device.RESUMABLE, "this overpressure has no resumed backup (interface 1.5)")
     def test_a_resumed_backup_skips_what_the_stopped_dump_read_whole(self):
         lun = self.backup / "lun4"
         lun.mkdir(parents=True)
@@ -149,60 +108,29 @@ class WorkflowTests(unittest.TestCase):
             'SECTOR_SIZE_IN_BYTES="4096" physical_partition_number="4" /></data>'
         )
         (lun / "abl.bin").write_bytes(b"x" * 4096)
-        base = [
-            *self.args("backup"),
-            "--edl-backend",
-            "edl-ng",
-            "--edl",
-            "edl-ng",
-            "--edl-luns",
-            "4",
-            "0",
-        ]
+        base = [*self.args("backup"), "--edl-backend", "edl-ng", "--edl", "edl-ng", "--edl-luns", "4", "0"]
         out = io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(device.main([*base, "--resume"]), 0)
-        skips = [
-            line.split("--skip ", 1)[1]
-            for line in out.getvalue().splitlines()
-            if "--skip" in line
-        ]
-        self.assertEqual(
-            skips,
-            ["cache,rawdump,logdump,userdata,abl", "cache,rawdump,logdump,userdata"],
-        )
-        with patch.object(
-            device, "RESUMABLE", new=False
-        ):  # an overpressure before interface 1.5
+        skips = [line.split("--skip ", 1)[1] for line in out.getvalue().splitlines() if "--skip" in line]
+        self.assertEqual(skips, ["cache,rawdump,logdump,userdata,abl", "cache,rawdump,logdump,userdata"])
+        with patch.object(device, "RESUMABLE", new=False):  # an overpressure before interface 1.5
             self.assertEqual(self.call([*base, "--resume"]), 1)
 
     def test_the_dump_shows_its_partitions_and_fails_on_an_error(self):
         script = "import sys; sys.stdout.write('Dumping aop: 50.0% (1 / 2 MiB)\\rDumping aop: 100.0%\\n')"
         out = io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-            self.assertIn(
-                "Dumping aop: 100.0%", device.run_dump([sys.executable, "-c", script])
-            )
-        self.assertEqual(
-            out.getvalue().splitlines(),
-            ["progress: reading aop (50%)", "progress: reading aop (100%)"],
-        )
-        with (
-            self.assertRaisesRegex(ValueError, "failed"),
-            contextlib.redirect_stderr(io.StringIO()),
-        ):
+            self.assertIn("Dumping aop: 100.0%", device.run_dump([sys.executable, "-c", script]))
+        self.assertEqual(out.getvalue().splitlines(), ["progress: reading aop (50%)", "progress: reading aop (100%)"])
+        with self.assertRaisesRegex(ValueError, "failed"), contextlib.redirect_stderr(io.StringIO()):
             device.run_dump([sys.executable, "-c", "print('ERROR: no answer')"])
-        noise = "import sys; print('libusb: warning [darwin_transfer_status] transfer error: timed out'); print('Dump completed')"
+        noise = "print('libusb: warning [darwin_transfer_status] transfer error: timed out'); print('Dump completed')"
         with contextlib.redirect_stderr(io.StringIO()):
-            self.assertIn(
-                "Dump completed", device.run_dump([sys.executable, "-c", noise])
-            )
+            self.assertIn("Dump completed", device.run_dump([sys.executable, "-c", noise]))
         # The error keeps the output's end; the backup's edl.log takes all of it from the error.
         script = "print('first line'); print('x' * 2000); print('ERROR: QUD write to COM5 timed out')"
-        with (
-            self.assertRaises(device.DumpError) as caught,
-            contextlib.redirect_stderr(io.StringIO()),
-        ):
+        with self.assertRaises(device.DumpError) as caught, contextlib.redirect_stderr(io.StringIO()):
             device.run_dump([sys.executable, "-c", script])
         self.assertIn("first line", caught.exception.output)
         self.assertNotIn("first line", str(caught.exception))
@@ -216,13 +144,7 @@ class WorkflowTests(unittest.TestCase):
         args[args.index("--backup") + 1] = str(fresh)
 
         def fake(command: list[str], timeout: float = 60) -> str:  # noqa: ARG001  # device.run_dump's signature
-            for name in (
-                "abl.bin",
-                "boot.bin",
-                "devinfo.bin",
-                "gpt_main0.bin",
-                "rawprogram0.xml",
-            ):
+            for name in ("abl.bin", "boot.bin", "devinfo.bin", "gpt_main0.bin", "rawprogram0.xml"):
                 (fresh / name).write_bytes(b"test recovery data")
             return "OK"
 
@@ -255,12 +177,7 @@ class WorkflowTests(unittest.TestCase):
         (self.backup / "abl.bin").write_bytes(b"tampered")
         with patch.object(device, "run") as run:
             for command in ("stage", "unlock", "restore-abl"):
-                self.assertEqual(
-                    self.call(
-                        [*self.args(command), "--execute", "--confirm-device", "ABC"]
-                    ),
-                    1,
-                )
+                self.assertEqual(self.call([*self.args(command), "--execute", "--confirm-device", "ABC"]), 1)
             run.assert_not_called()
 
     def test_manifest_cannot_escape_backup(self):
@@ -271,24 +188,12 @@ class WorkflowTests(unittest.TestCase):
 
     def test_wrong_device_and_missing_wipe_ack(self):
         with patch.object(device, "run") as run:
-            self.assertEqual(
-                self.call(
-                    [*self.args("unlock"), "--execute", "--confirm-device", "OTHER"]
-                ),
-                1,
-            )
-            self.assertEqual(
-                self.call(
-                    [*self.args("unlock"), "--execute", "--confirm-device", "ABC"]
-                ),
-                1,
-            )
+            self.assertEqual(self.call([*self.args("unlock"), "--execute", "--confirm-device", "OTHER"]), 1)
+            self.assertEqual(self.call([*self.args("unlock"), "--execute", "--confirm-device", "ABC"]), 1)
             run.assert_not_called()
 
     def test_unknown_firmware_blocks_execution(self):
-        self.record["fingerprint"] = self.record["fingerprint"].replace(
-            "5.13.7", "5.14.0"
-        )
+        self.record["fingerprint"] = self.record["fingerprint"].replace("5.13.7", "5.14.0")
         self.identity.write_text(json.dumps(self.record))
         with patch.object(device, "run") as run:
             self.assertEqual(self.call(self.args("unlock")), 1)
@@ -306,9 +211,7 @@ class WorkflowTests(unittest.TestCase):
             ("5.13.8", "", same),
             ("5.13.7", "false", same),  # as firmware.json and match call an empty state
         ):
-            self.record["fingerprint"] = (
-                f"Pico/Phoenix_ovs/PICOA8110:10/{version}/build:user/dev-keys"
-            )
+            self.record["fingerprint"] = f"Pico/Phoenix_ovs/PICOA8110:10/{version}/build:user/dev-keys"
             self.record["oem_state"] = state
             self.identity.write_text(json.dumps(self.record))
             with self.subTest(version=version, state=state):
@@ -323,9 +226,7 @@ class WorkflowTests(unittest.TestCase):
             ("Phoenix_ovs", "5.13.9", "true", "has not been compared"),
             ("Phoenix_ovs", "5.12.0", "true", "has not been compared"),
         ):
-            self.record["fingerprint"] = (
-                f"Pico/{product}/PICOA8110:10/{version}/build:user/dev-keys"
-            )
+            self.record["fingerprint"] = f"Pico/{product}/PICOA8110:10/{version}/build:user/dev-keys"
             self.record["oem_state"] = state
             self.identity.write_text(json.dumps(self.record))
             with self.subTest(product=product, version=version, state=state):
@@ -355,9 +256,7 @@ class WorkflowTests(unittest.TestCase):
         ):
             self.record.update(model=model, ddr_type=ddr)
             self.identity.write_text(json.dumps(self.record))
-            with self.assertRaisesRegex(
-                ValueError, "Pro and Enterprise are not verified"
-            ):
+            with self.assertRaisesRegex(ValueError, "Pro and Enterprise are not verified"):
                 device.read_identity(self.identity)
         # A probe that got no answer is refused too; the PICO 4 itself passes.
         self.record.update(model="", ddr_type="DDR4")
@@ -384,10 +283,7 @@ class WorkflowTests(unittest.TestCase):
             return answers.get(argv[-1], "0x1234")
 
         output = self.identity.with_name("probed.json")
-        with (
-            patch.object(device, "run", side_effect=run),
-            patch.object(device, "select_device", return_value="ABC"),
-        ):
+        with patch.object(device, "run", side_effect=run), patch.object(device, "select_device", return_value="ABC"):
             self.call(["probe", "--adb", "adb", "--output", str(output)])
         record = json.loads(output.read_text())
         self.assertEqual((record["model"], record["ddr_type"]), ("PICO 4", "DDR4"))
@@ -396,9 +292,7 @@ class WorkflowTests(unittest.TestCase):
         sharp = "console=x msm_drm.dsi_display0=qcom,mdss_dsi_sharp_ls026b3sa_90_video: pico4.part=recovery"
         self.assertEqual(device.check_panel(sharp), "sharp_ls026b3sa")
         with self.assertRaisesRegex(ValueError, "nt57900.*not verified"):
-            device.check_panel(
-                "msm_drm.dsi_display0=qcom,mdss_dsi_innolux_nt57900_90_video:"
-            )
+            device.check_panel("msm_drm.dsi_display0=qcom,mdss_dsi_innolux_nt57900_90_video:")
         with self.assertRaisesRegex(ValueError, "names no panel"):
             device.check_panel("console=x")
 
@@ -413,10 +307,7 @@ class WorkflowTests(unittest.TestCase):
         sharp = denied + log.format("sharp_ls026b3sa") + shown.format("sharp ls026b3")
         self.assertEqual(device.check_panel_in_pico_os(sharp), "sharp_ls026b3sa")
         # The log has rotated past the boot: SurfaceFlinger's short name.
-        self.assertEqual(
-            device.check_panel_in_pico_os(denied + shown.format("sharp ls026b3")),
-            "sharp_ls026b3sa",
-        )
+        self.assertEqual(device.check_panel_in_pico_os(denied + shown.format("sharp ls026b3")), "sharp_ls026b3sa")
         # The other panel, by either source.
         with self.assertRaisesRegex(ValueError, "nt57900_innolux is not verified"):
             device.check_panel_in_pico_os(denied + log.format("nt57900_innolux"))
@@ -427,10 +318,7 @@ class WorkflowTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "names no display panel"):
                 device.check_panel_in_pico_os(output)
         # A readable command line decides, as before.
-        cmdline = (
-            "msm_drm.dsi_display0=qcom,mdss_dsi_innolux_nt57900_90_video:\n"
-            + shown.format("sharp ls026b3")
-        )
+        cmdline = "msm_drm.dsi_display0=qcom,mdss_dsi_innolux_nt57900_90_video:\n" + shown.format("sharp ls026b3")
         with self.assertRaisesRegex(ValueError, "nt57900 is not verified"):
             device.check_panel_in_pico_os(cmdline)
 
@@ -444,9 +332,7 @@ class WorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not the known file"):
             unlockfiles.fetch(Settings(), log=lambda _: None, read=lambda _: b"other")
         self.assertFalse((self.root / "assets" / "engineering_abl.elf").exists())
-        self.assertEqual(
-            {f.setting for f in unlockfiles.FILES}, {"engineering_abl", "loader"}
-        )
+        self.assertEqual({f.setting for f in unlockfiles.FILES}, {"engineering_abl", "loader"})
         for item in unlockfiles.FILES:
             self.assertTrue(item.url.startswith("https://"))
             self.assertRegex(item.sha256, "^[0-9a-f]{64}$")
@@ -461,12 +347,7 @@ class WorkflowTests(unittest.TestCase):
             return "OK"
 
         with patch.object(device, "run", side_effect=fake):
-            self.assertEqual(
-                self.call(
-                    [*self.args("stage"), "--execute", "--confirm-device", "ABC"]
-                ),
-                0,
-            )
+            self.assertEqual(self.call([*self.args("stage"), "--execute", "--confirm-device", "ABC"]), 0)
         self.assertEqual([c[1] for c in commands], ["w", "r"])
         self.assertEqual((self.backup / "abl.bin").read_bytes(), b"original stock ABL")
 
@@ -477,12 +358,7 @@ class WorkflowTests(unittest.TestCase):
             return "OK"
 
         with patch.object(device, "run", side_effect=fake):
-            self.assertEqual(
-                self.call(
-                    [*self.args("stage"), "--execute", "--confirm-device", "ABC"]
-                ),
-                1,
-            )
+            self.assertEqual(self.call([*self.args("stage"), "--execute", "--confirm-device", "ABC"]), 1)
 
     def test_restore_uses_original(self):
         commands = []
@@ -494,12 +370,7 @@ class WorkflowTests(unittest.TestCase):
             return "OK"
 
         with patch.object(device, "run", side_effect=fake):
-            self.assertEqual(
-                self.call(
-                    [*self.args("restore-abl"), "--execute", "--confirm-device", "ABC"]
-                ),
-                0,
-            )
+            self.assertEqual(self.call([*self.args("restore-abl"), "--execute", "--confirm-device", "ABC"]), 0)
         self.assertEqual(Path(commands[0][3]), (self.backup / "abl.bin").resolve())
 
     def test_unlock_checks_after_reboot_and_stops_on_failure(self):
@@ -513,13 +384,7 @@ class WorkflowTests(unittest.TestCase):
                 return "Device unlocked: true\nDevice critical unlocked: true"
             return "OKAY"
 
-        args = [
-            *self.args("unlock"),
-            "--execute",
-            "--confirm-device",
-            "ABC",
-            "--accept-data-loss",
-        ]
+        args = [*self.args("unlock"), "--execute", "--confirm-device", "ABC", "--accept-data-loss"]
         with patch.object(device, "run", side_effect=fake):
             self.assertEqual(self.call(args), 0)
         # A fresh bootloader session first: a locked headset is in the fastboot its failed boot left,
@@ -539,19 +404,14 @@ class WorkflowTests(unittest.TestCase):
         )
         self.assertEqual(commands[-2][-2:], ["reboot", "bootloader"])
         self.assertEqual(commands[-1][-2:], ["oem", "device-info"])
-        with patch.object(
-            device, "run", side_effect=["ABC fastboot", ValueError("failure")]
-        ) as run:
+        with patch.object(device, "run", side_effect=["ABC fastboot", ValueError("failure")]) as run:
             self.assertEqual(self.call(args), 1)
             self.assertEqual(run.call_count, 2)
 
         # Unlocked before (a new install after the way back): the bootloader refuses the unlock as
         # done, as the PICO 4's does; the check after the reboot still decides.
         def unlocked_before(command: list[str], timeout: float = 60) -> str:  # noqa: ARG001  # device.run's signature
-            if command[-2:] in (
-                ["flashing", "unlock"],
-                ["flashing", "unlock_critical"],
-            ):
+            if command[-2:] in (["flashing", "unlock"], ["flashing", "unlock_critical"]):
                 msg = "Command failed (1): FAILED (remote: '\\tDevice already : unlocked!')"
                 raise ValueError(msg)
             return fake(command)
@@ -565,18 +425,14 @@ class WorkflowTests(unittest.TestCase):
             device,
             "run",
             side_effect=lambda c, **_: (
-                "ABC fastboot"
-                if c[-1] == "devices"
-                else (_ for _ in ()).throw(ValueError("FAILED (remote: 'locked')"))
+                "ABC fastboot" if c[-1] == "devices" else (_ for _ in ()).throw(ValueError("FAILED (remote: 'locked')"))
             ),
         ):
             self.assertEqual(self.call(args), 1)
         with patch.object(
             device,
             "run",
-            side_effect=lambda c, **_: (
-                "ABC fastboot" if c[-1] == "devices" else "Device unlocked: false"
-            ),
+            side_effect=lambda c, **_: "ABC fastboot" if c[-1] == "devices" else "Device unlocked: false",
         ):
             self.assertEqual(self.call(args), 1)
 

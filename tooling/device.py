@@ -21,13 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from overpressure.api.v1 import android, process, qualcomm
 from overpressure.api.v1.android import run
-from overpressure.api.v1.backup import (
-    digest,
-    partition_names,
-    save_new,
-    verified_backup,
-    verified_backup_shown,
-)
+from overpressure.api.v1.backup import digest, partition_names, save_new, verified_backup, verified_backup_shown
 from overpressure.api.v1.qualcomm import (
     DumpProgress,
     backup_commands,
@@ -65,9 +59,7 @@ def unlock_token(number: int) -> str:
     if not 0 <= number <= CHIP_ID_MAX:
         msg = "Chip ID must fit in 32 bits"
         raise ValueError(msg)
-    return "pico" + format(number & 0xF7F3F37F, "x").translate(
-        str.maketrans("0123456789abcdef", "0XD9J6FB3ATQIHNM")
-    )
+    return "pico" + format(number & 0xF7F3F37F, "x").translate(str.maketrans("0123456789abcdef", "0XD9J6FB3ATQIHNM"))
 
 
 #: The PICO OS builds the install accepts (docs/device-preparation.md#other-pico-os-builds), as (version,
@@ -92,10 +84,7 @@ VERIFIED_PANELS = ("sharp_ls026b3sa",)
 #: the serial number (vendor pxr.vendorhw.check.sh: "PICO 4", "PICO 4 Pro", "PICO 4 Enterprise") and the
 #: memory from the bootloader's report (vendor init.customize.config.sh: "DDR4" or "DDR5"). The Pro and
 #: Enterprise share the PICO 4's fingerprint; their LPDDR5 needs another Firehose loader and memory setup.
-MODEL_PROPERTIES = {
-    "model": "pxr.vendorhw.product.model",
-    "ddr_type": "ro.vendor.ddr_type",
-}
+MODEL_PROPERTIES = {"model": "pxr.vendorhw.product.model", "ddr_type": "ro.vendor.ddr_type"}
 VERIFIED_MODEL = {"model": "PICO 4", "ddr_type": "DDR4"}
 
 
@@ -108,11 +97,7 @@ def firmware_region(fingerprint: str) -> str:
 def firmware_support(identity: dict) -> str:
     """Return how the install supports a saved identity's PICO OS build; refuse one it does not."""
     fingerprint = identity.get("fingerprint", "")
-    return check_firmware(
-        fingerprint.split("/")[3],
-        identity.get("oem_state", ""),
-        firmware_region(fingerprint),
-    )
+    return check_firmware(fingerprint.split("/")[3], identity.get("oem_state", ""), firmware_region(fingerprint))
 
 
 def check_firmware(version: str, oem_state: str, region: str = "global") -> str:
@@ -128,9 +113,7 @@ def check_firmware(version: str, oem_state: str, region: str = "global") -> str:
         why = "China builds run another XBL and AOP than the verified build"
     else:
         why = "this build has not been compared with the verified one (python -m overpressure bootchain)"
-    accepted = ", ".join(
-        sorted({v for v, _r, _s in VERIFIED_FIRMWARES | SAME_CODE_FIRMWARES})
-    )
+    accepted = ", ".join(sorted({v for v, _r, _s in VERIFIED_FIRMWARES | SAME_CODE_FIRMWARES}))
     msg = (
         f"PICO OS {version} ({region}, ro.oem.state {oem_state}) is not supported: {why}. Supported: the global "
         f"builds {accepted}, seko and sek. Nothing was changed (docs/device-preparation.md)"
@@ -161,10 +144,7 @@ def check_panel(cmdline: str) -> str:
     Another panel stays dark on Valve's kernel: the PICO 4 has been sold with a second one, an
     Innolux NT57900.
     """
-    found = re.search(
-        r"\bmsm_drm\.dsi_display0=qcom,mdss_dsi_([a-z0-9_]+?)_\d+_(?:video|cmd)\b",
-        cmdline,
-    )
+    found = re.search(r"\bmsm_drm\.dsi_display0=qcom,mdss_dsi_([a-z0-9_]+?)_\d+_(?:video|cmd)\b", cmdline)
     if not found:
         msg = "The kernel command line names no panel: refusing to install (docs/device-preparation.md)"
         raise ValueError(msg)
@@ -180,7 +160,9 @@ def check_panel(cmdline: str) -> str:
 #: What PICO OS's adb shell may read about the panel, one command: SELinux keeps it from the kernel's
 #: command line, not from the display service's log at boot (Dpps: "panel_name <panel>_90hz_video_mode_dsi_panel")
 #: or SurfaceFlinger's display name (the panel's name with spaces, cut to 13 characters, "sharp ls026b3").
-PANEL_PROBE = "cat /proc/cmdline 2>&1; logcat -d -s Dpps 2>&1 | grep -m1 panel_name; dumpsys SurfaceFlinger --display-id 2>&1"
+PANEL_PROBE = (
+    "cat /proc/cmdline 2>&1; logcat -d -s Dpps 2>&1 | grep -m1 panel_name; dumpsys SurfaceFlinger --display-id 2>&1"
+)
 
 
 def check_panel_in_pico_os(output: str) -> str:
@@ -192,9 +174,7 @@ def check_panel_in_pico_os(output: str) -> str:
     """
     if "msm_drm.dsi_display0=" in output:
         return check_panel(output)
-    found = re.search(
-        r"\bpanel_name ([a-z0-9_]+?)_\d+hz_(?:video|cmd)_mode_dsi_panel\b", output
-    )
+    found = re.search(r"\bpanel_name ([a-z0-9_]+?)_\d+hz_(?:video|cmd)_mode_dsi_panel\b", output)
     if found:
         name = found.group(1)
     else:
@@ -260,9 +240,7 @@ def wait_mcu(  # noqa: PLR0913  # adb and the serial, the runner and the clock; 
     def over() -> None:
         nonlocal told
         lines = runner([adb, "-s", serial, "shell", MCU_PROBE], 30).splitlines()
-        failed = next(
-            (line.strip() for line in lines[1:] if re.search(MCU_FAILED, line)), ""
-        )
+        failed = next((line.strip() for line in lines[1:] if re.search(MCU_FAILED, line)), "")
         if failed:
             msg = f"{MCU_UPDATE_FAILED} (PICO OS's log: {failed})"
             raise McuUpdateFailedError(msg)
@@ -273,9 +251,7 @@ def wait_mcu(  # noqa: PLR0913  # adb and the serial, the runner and the clock; 
             msg = "PICO OS has not finished its check of the MCU"
             raise RuntimeError(msg)
 
-    process.until(
-        "PICO OS's check of the lens and fan MCU", seconds, over, clock, interval=5
-    )
+    process.until("PICO OS's check of the lens and fan MCU", seconds, over, clock, interval=5)
 
 
 def read_identity(path: Path) -> dict:
@@ -303,10 +279,7 @@ def confirm(args: argparse.Namespace, identity: dict) -> None:
 
 def dispatch(args: argparse.Namespace) -> None:  # noqa: C901, PLR0911, PLR0912, PLR0915  # the unlock workflow's commands, kept as verified on hardware
     """Run one device command; previews unless --execute."""
-    for tool in (
-        "adb",
-        "fastboot",
-    ):  # not named: the settings' tool, as every other command runs it
+    for tool in ("adb", "fastboot"):  # not named: the settings' tool, as every other command runs it
         if hasattr(args, tool) and getattr(args, tool) is None:
             setattr(args, tool, localconfig.load().tool(tool))
     if args.command == "token":
@@ -324,15 +297,10 @@ def dispatch(args: argparse.Namespace) -> None:  # noqa: C901, PLR0911, PLR0912,
             "fingerprint": run([*base, "getprop", "ro.build.fingerprint"]),
             "oem_state": run([*base, "getprop", "ro.oem.state"]),
             "chip_id": chip_id(run([*base, "cat", "/sys/devices/soc0/serial_number"])),
-            **{
-                key: run([*base, "getprop", prop])
-                for key, prop in MODEL_PROPERTIES.items()
-            },
+            **{key: run([*base, "getprop", prop]) for key, prop in MODEL_PROPERTIES.items()},
         }
         save_new(args.output, identity)
-        print(
-            f"Saved {args.output}; use 'python -m overpressure match' with fingerprint and oem_state"
-        )
+        print(f"Saved {args.output}; use 'python -m overpressure match' with fingerprint and oem_state")
         return
     if args.command == "check-unlocked":
         serial = select_device(args.fastboot, args.serial)
@@ -340,9 +308,7 @@ def dispatch(args: argparse.Namespace) -> None:  # noqa: C901, PLR0911, PLR0912,
         return
     if args.command == "verify-backup":
         manifest = verified_backup_shown(args.backup)
-        print(
-            f"Verified {len(manifest['files'])} files for {manifest['identity']['serial']}"
-        )
+        print(f"Verified {len(manifest['files'])} files for {manifest['identity']['serial']}")
         return
 
     identity = read_identity(args.identity)
@@ -354,11 +320,7 @@ def dispatch(args: argparse.Namespace) -> None:  # noqa: C901, PLR0911, PLR0912,
         # The keyword only where it is asked for: an overpressure before interface 1.5 has no such parameter.
         resume: dict[str, Any] = {"resume": True} if args.resume else {}
         # What a stopped edl-ng backup of this headset already read whole: skipped, so it goes on from there.
-        done = (
-            {lun: qualcomm.dumped(args.backup, lun) for lun in args.edl_luns or []}
-            if args.resume
-            else {}
-        )
+        done = {lun: qualcomm.dumped(args.backup, lun) for lun in args.edl_luns or []} if args.resume else {}
         commands = backup_commands(args, done) if done else backup_commands(args)
         if not args.execute:
             for command in commands:
@@ -374,9 +336,7 @@ def dispatch(args: argparse.Namespace) -> None:  # noqa: C901, PLR0911, PLR0912,
             runner=run_dump,
             **resume,
         )
-        print(
-            "Backup captured. Run verify-backup and retain an independent copy before modifying the device."
-        )
+        print("Backup captured. Run verify-backup and retain an independent copy before modifying the device.")
         return
 
     manifest = verified_backup(args.backup)
@@ -384,11 +344,7 @@ def dispatch(args: argparse.Namespace) -> None:  # noqa: C901, PLR0911, PLR0912,
         msg = "Backup belongs to a different identity record"
         raise ValueError(msg)
     if args.command in ("stage", "restore-abl"):
-        allowed = (
-            r"abl(?:_[ab])?"
-            if args.command == "restore-abl"
-            else r"(?:abl|devinfo)(?:_[ab])?"
-        )
+        allowed = r"abl(?:_[ab])?" if args.command == "restore-abl" else r"(?:abl|devinfo)(?:_[ab])?"
         if not re.fullmatch(allowed, args.partition):
             msg = "Only explicit ABL/devinfo partition names are accepted"
             raise ValueError(msg)
@@ -435,16 +391,7 @@ def dispatch(args: argparse.Namespace) -> None:  # noqa: C901, PLR0911, PLR0912,
         ]
         if not args.execute:
             for command in commands:
-                print(
-                    subprocess.list2cmdline(
-                        [
-                            args.fastboot,
-                            "-s",
-                            args.serial or identity["serial"],
-                            *command,
-                        ]
-                    )
-                )
+                print(subprocess.list2cmdline([args.fastboot, "-s", args.serial or identity["serial"], *command]))
             return
         if not args.accept_data_loss:
             msg = "Unlock wipes user data; execution requires --accept-data-loss"
@@ -469,85 +416,47 @@ def unlock_step(fastboot: str, serial: str, command: list[str]) -> None:
     try:
         run([fastboot, "-s", serial, *command], timeout=120)
     except ValueError as exc:
-        if command[0] != "flashing" or not re.search(
-            r"already\s*:?\s*unlocked", str(exc), re.IGNORECASE
-        ):
+        if command[0] != "flashing" or not re.search(r"already\s*:?\s*unlocked", str(exc), re.IGNORECASE):
             raise
         print(f"{' '.join(command)}: the headset is unlocked already", file=sys.stderr)
 
 
 def parser() -> argparse.ArgumentParser:
     """Return the device command line's parser."""
-    ap = argparse.ArgumentParser(
-        prog="python -m overpressure device", description=__doc__
-    )
+    ap = argparse.ArgumentParser(prog="python -m overpressure device", description=__doc__)
     sub = ap.add_subparsers(dest="command", required=True)
-    token = sub.add_parser(
-        "token", help="derive an OEM command offline; execute nothing"
-    )
+    token = sub.add_parser("token", help="derive an OEM command offline; execute nothing")
     token.add_argument("chip_id")
-    sub.add_parser(
-        "fetch-unlock-files",
-        help="the engineering ABL and Firehose loader from PICO's public downloads",
-    )
+    sub.add_parser("fetch-unlock-files", help="the engineering ABL and Firehose loader from PICO's public downloads")
     probe = sub.add_parser("probe", help="read stock headset identity via ADB")
-    probe.add_argument(
-        "--adb",
-        help="adb to run (default: the platform_tools setting, the fetched platform-tools, else PATH)",
-    )
+    probe.add_argument("--adb", help="adb to run (default: the settings' tool)")
     probe.add_argument("--serial")
     probe.add_argument("--output", type=Path, default=Path("backup/device.json"))
-    check = sub.add_parser(
-        "check-unlocked", help="read fastboot unlock state; fail closed"
-    )
-    check.add_argument("--fastboot", help="fastboot to run (default: as --adb)")
+    check = sub.add_parser("check-unlocked", help="read fastboot unlock state; fail closed")
+    check.add_argument("--fastboot", help="fastboot to run (default: the settings' tool)")
     check.add_argument("--serial")
     check.add_argument("--critical", action="store_true")
     verify = sub.add_parser("verify-backup")
     verify.add_argument("--backup", type=Path, required=True)
     for name in ("backup", "stage", "unlock", "restore-abl"):
-        p = sub.add_parser(
-            name, help="preview by default; --execute operates on the headset"
-        )
+        p = sub.add_parser(name, help="preview by default; --execute operates on the headset")
         p.add_argument("--identity", type=Path, required=True)
         p.add_argument("--backup", type=Path, required=True)
         p.add_argument("--execute", action="store_true")
-        p.add_argument(
-            "--confirm-device",
-            help="saved ADB serial; EDL physical identity must be checked manually",
-        )
+        p.add_argument("--confirm-device", help="saved ADB serial; EDL physical identity must be checked manually")
         if name == "unlock":
-            p.add_argument("--fastboot", help="fastboot to run (default: as --adb)")
+            p.add_argument("--fastboot", help="fastboot to run (default: the settings' tool)")
             p.add_argument("--serial", help="fastboot serial, if different from ADB")
             p.add_argument("--accept-data-loss", action="store_true")
         else:
-            p.add_argument(
-                "--edl",
-                default="edl",
-                help="path to the separately installed EDL executable",
-            )
-            p.add_argument(
-                "--edl-backend", choices=("bkerler", "edl-ng"), default="bkerler"
-            )
-            p.add_argument(
-                "--edl-script",
-                help="alternative: path to bkerler/edl's top-level edl.py",
-            )
-            p.add_argument(
-                "--edl-python",
-                default=sys.executable,
-                help="Python environment for --edl-script",
-            )
-            p.add_argument(
-                "--loader",
-                required=True,
-                help="user-supplied compatible signed Firehose ELF",
-            )
+            p.add_argument("--edl", default="edl", help="path to the separately installed EDL executable")
+            p.add_argument("--edl-backend", choices=("bkerler", "edl-ng"), default="bkerler")
+            p.add_argument("--edl-script", help="alternative: path to bkerler/edl's top-level edl.py")
+            p.add_argument("--edl-python", default=sys.executable, help="Python environment for --edl-script")
+            p.add_argument("--loader", required=True, help="user-supplied compatible signed Firehose ELF")
         if name == "backup":
             p.add_argument(
-                "--include-userdata",
-                action="store_true",
-                help="full userdata partition, potentially hundreds of GB",
+                "--include-userdata", action="store_true", help="full userdata partition, potentially hundreds of GB"
             )
             p.add_argument(
                 "--resume",
@@ -562,19 +471,11 @@ def parser() -> argparse.ArgumentParser:
                 help="edl-ng only: all LUNs found by the device's printgpt scan",
             )
         if name in ("stage", "restore-abl"):
-            p.add_argument(
-                "--partition",
-                required=True,
-                help="exact partition name from the captured GPT",
-            )
+            p.add_argument("--partition", required=True, help="exact partition name from the captured GPT")
             p.add_argument("--readback", type=Path, required=True)
         if name == "stage":
             p.add_argument("--image", type=Path, required=True)
-            p.add_argument(
-                "--sha256",
-                required=True,
-                help="expected engineering image hash from your trusted source",
-            )
+            p.add_argument("--sha256", required=True, help="expected engineering image hash from your trusted source")
     return ap
 
 
@@ -598,9 +499,7 @@ def run_dump(command: list[str], timeout: int = 60) -> str:
     except RuntimeError as exc:
         raise DumpError(str(exc), getattr(exc, "output", "")) from exc
     # libusb's macOS warnings ("transfer error: timed out") are harmless noise, not a failed dump
-    if re.search(
-        r"\b(?:FAILED|ERROR)\b", re.sub(r"(?m)^libusb:.*$", "", output), re.IGNORECASE
-    ):
+    if re.search(r"\b(?:FAILED|ERROR)\b", re.sub(r"(?m)^libusb:.*$", "", output), re.IGNORECASE):
         msg = f"Command failed: {output[-800:]}"
         raise DumpError(msg, output)
     return output
@@ -611,14 +510,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
         dispatch(args)
-    except (
-        ValueError,
-        OSError,
-        KeyError,
-        TypeError,
-        ET.ParseError,
-        subprocess.TimeoutExpired,
-    ) as exc:
+    except (ValueError, OSError, KeyError, TypeError, ET.ParseError, subprocess.TimeoutExpired) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     return 0
