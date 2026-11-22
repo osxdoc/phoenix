@@ -498,8 +498,8 @@ def run_dump(command: list[str], timeout: int = 60) -> str:
         output = process.run_streamed(command, timeout, DumpProgress())
     except RuntimeError as exc:
         raise DumpError(str(exc), getattr(exc, "output", "")) from exc
-    # libusb's macOS warnings ("transfer error: timed out") are harmless noise, not a failed dump
-    if re.search(r"\b(?:FAILED|ERROR)\b", re.sub(r"(?m)^libusb:.*$", "", output), re.IGNORECASE):
+    # macOS' libusb warns about transfers its caller retries and completes ("transfer error: timed out")
+    if re.search(r"\b(?:FAILED|ERROR)\b", re.sub(r"(?m)^libusb: warning .*$", "", output), re.IGNORECASE):
         msg = f"Command failed: {output[-800:]}"
         raise DumpError(msg, output)
     return output
